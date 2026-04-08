@@ -9,26 +9,28 @@ import { eq, and } from 'drizzle-orm';
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { id } = await params;
   const db = getDb();
   await db
     .delete(foodLogs)
-    .where(and(eq(foodLogs.id, params.id), eq(foodLogs.userId, userId)));
+    .where(and(eq(foodLogs.id, id), eq(foodLogs.userId, userId)));
 
   return NextResponse.json({ success: true });
 }
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { id } = await params;
   const body = await req.json();
   const { food_name, calories, protein_g, carbs_g, fat_g, fiber_g, meal_type, notes } = body;
 
@@ -45,7 +47,7 @@ export async function PUT(
       mealType: meal_type,
       notes: notes || null,
     })
-    .where(and(eq(foodLogs.id, params.id), eq(foodLogs.userId, userId)))
+    .where(and(eq(foodLogs.id, id), eq(foodLogs.userId, userId)))
     .returning();
 
   return NextResponse.json({ entry: updated });
