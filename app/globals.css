@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background-color: #F7F5F0;
+    color: #1A1A1A;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Fraunces', Georgia, serif;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: #F7F5F0;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl shadow-card p-5;
+  }
+
+  .card-hover {
+    @apply transition-shadow duration-200 hover:shadow-card-hover;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white font-medium px-5 py-2.5 rounded-xl hover:bg-primary-dark transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-accent-light text-primary font-medium px-5 py-2.5 rounded-xl hover:bg-accent transition-colors duration-150;
+  }
+
+  .btn-ghost {
+    @apply text-muted font-medium px-4 py-2 rounded-xl hover:bg-gray-100 transition-colors duration-150;
+  }
+
+  .btn-danger {
+    @apply text-danger font-medium px-4 py-2 rounded-xl hover:bg-danger-light transition-colors duration-150;
+  }
+
+  .input {
+    @apply w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all duration-150;
+  }
+
+  .meal-badge-breakfast {
+    @apply bg-amber-100 text-amber-700 text-xs font-medium px-2.5 py-0.5 rounded-full;
+  }
+
+  .meal-badge-lunch {
+    @apply bg-emerald-100 text-emerald-700 text-xs font-medium px-2.5 py-0.5 rounded-full;
+  }
+
+  .meal-badge-dinner {
+    @apply bg-indigo-100 text-indigo-700 text-xs font-medium px-2.5 py-0.5 rounded-full;
+  }
+
+  .meal-badge-snack {
+    @apply bg-pink-100 text-pink-700 text-xs font-medium px-2.5 py-0.5 rounded-full;
+  }
+}
+
+/* SVG ring animation */
+.ring-progress {
+  transition: stroke-dashoffset 0.8s ease-in-out;
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(90deg, #f0eeea 25%, #e8e5df 50%, #f0eeea 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D1D5DB;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9CA3AF;
+}
