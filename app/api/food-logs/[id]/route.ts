@@ -1,6 +1,9 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { foodLogs } from '@/lib/schema';
 import { eq, and } from 'drizzle-orm';
 
@@ -11,6 +14,7 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const db = getDb();
   await db
     .delete(foodLogs)
     .where(and(eq(foodLogs.id, params.id), eq(foodLogs.userId, userId)));
@@ -28,6 +32,7 @@ export async function PUT(
   const body = await req.json();
   const { food_name, calories, protein_g, carbs_g, fat_g, fiber_g, meal_type, notes } = body;
 
+  const db = getDb();
   const [updated] = await db
     .update(foodLogs)
     .set({

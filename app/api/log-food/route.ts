@@ -1,6 +1,9 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { foodLogs } from '@/lib/schema';
 import { parseFoodEntry } from '@/lib/claude';
 
@@ -30,10 +33,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Override meal_type if user explicitly selected one
   if (mealType) parsed.meal_type = mealType;
 
   const logDate = now.toISOString().split('T')[0];
+  const db = getDb();
 
   const [entry] = await db
     .insert(foodLogs)

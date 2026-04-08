@@ -1,6 +1,9 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { usersProfile } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 
@@ -8,6 +11,7 @@ export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const db = getDb();
   const profile = await db.query.usersProfile.findFirst({
     where: eq(usersProfile.clerkUserId, userId),
   });
@@ -23,6 +27,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { name, age, height_cm, weight_kg, goal, activity_level } = body;
 
+  const db = getDb();
   const existing = await db.query.usersProfile.findFirst({
     where: eq(usersProfile.clerkUserId, userId),
   });

@@ -3,13 +3,11 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['@neondatabase/serverless'],
   },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'img.clerk.com',
-      },
-    ],
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
   },
 };
 

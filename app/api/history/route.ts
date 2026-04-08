@@ -1,6 +1,9 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { getDb } from '@/lib/db';
 import { foodLogs } from '@/lib/schema';
 import { eq, and, gte } from 'drizzle-orm';
 
@@ -12,12 +15,12 @@ export async function GET() {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const fromDate = thirtyDaysAgo.toISOString().split('T')[0];
 
+  const db = getDb();
   const logs = await db.query.foodLogs.findMany({
     where: and(eq(foodLogs.userId, userId), gte(foodLogs.logDate, fromDate)),
     orderBy: (foodLogs, { asc }) => [asc(foodLogs.logDate), asc(foodLogs.loggedAt)],
   });
 
-  // Group by date and compute daily summaries
   const byDate = new Map<string, typeof logs>();
   for (const log of logs) {
     const existing = byDate.get(log.logDate) || [];

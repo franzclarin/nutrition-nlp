@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
+function getClient() {
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+}
 
 export interface ParsedFoodEntry {
   food_name: string;
@@ -50,7 +50,7 @@ Be accurate with macro estimates using standard nutritional databases. Sum up al
     : `Food input: ${rawInput}`;
 
   async function attempt(): Promise<ParsedFoodEntry> {
-    const message = await anthropic.messages.create({
+    const message = await getClient().messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 512,
       messages: [{ role: 'user', content: userMessage }],
@@ -64,7 +64,6 @@ Be accurate with macro estimates using standard nutritional databases. Sum up al
   try {
     return await attempt();
   } catch {
-    // Retry once
     return await attempt();
   }
 }
@@ -99,7 +98,7 @@ Remaining macros needed:
 
 Suggest 3 specific meals that would help fill these remaining needs well.`;
 
-  const message = await anthropic.messages.create({
+  const message = await getClient().messages.create({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 1024,
     messages: [{ role: 'user', content: userMessage }],
