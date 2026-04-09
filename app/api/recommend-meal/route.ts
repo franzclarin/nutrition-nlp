@@ -7,7 +7,7 @@ import { getDb } from '@/lib/db';
 import { foodLogs, usersProfile } from '@/lib/schema';
 import { eq, and } from 'drizzle-orm';
 import { calculateMacroTargets, GOAL_LABELS } from '@/lib/macros';
-import { getMealRecommendations } from '@/lib/claude';
+import { getMealRecommendations } from '@/lib/openai';
 
 export async function POST() {
   const { userId } = await auth();

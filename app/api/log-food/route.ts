@@ -5,7 +5,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { foodLogs } from '@/lib/schema';
-import { parseFoodEntry } from '@/lib/claude';
+import { parseFoodMacros } from '@/lib/openai';
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   let parsed;
   try {
-    parsed = await parseFoodEntry(rawInput, timeOfDay);
+    parsed = await parseFoodMacros(rawInput, timeOfDay);
   } catch {
     return NextResponse.json(
       { error: 'Could not parse food entry. Please try rephrasing.' },
