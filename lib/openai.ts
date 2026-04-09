@@ -41,7 +41,7 @@ export async function parseFoodMacros(
   async function attempt(): Promise<ParsedFoodEntry> {
     const response = await client.chat.completions.create({
       model: 'gpt-5',
-      max_tokens: 512,
+      max_completion_tokens: 512,
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -103,7 +103,7 @@ export async function getMealRecommendations(context: {
 
   const response = await client.chat.completions.create({
     model: 'gpt-5',
-    max_tokens: 1024,
+    max_completion_tokens: 1024,
     // json_object mode requires a top-level object, not an array —
     // so we ask for { suggestions: [...] } and unwrap below.
     response_format: { type: 'json_object' },
