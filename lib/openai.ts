@@ -33,24 +33,41 @@ export interface MealSuggestion {
 // ---------------------------------------------------------------------------
 
 function robustParseJSON(raw: string): unknown {
+  console.log('[robustParseJSON] Input length:', raw.length);
+  console.log('[robustParseJSON] First 500 chars:', raw.slice(0, 500));
+
   // Attempt 1: direct parse
   try {
-    return JSON.parse(raw);
-  } catch {}
+    const result = JSON.parse(raw);
+    console.log('[robustParseJSON] Attempt 1 succeeded');
+    return result;
+  } catch (e1) {
+    console.log('[robustParseJSON] Attempt 1 failed:', String(e1));
+  }
 
   // Attempt 2: strip markdown fences
   try {
     const stripped = raw.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
-    return JSON.parse(stripped);
-  } catch {}
+    const result = JSON.parse(stripped);
+    console.log('[robustParseJSON] Attempt 2 succeeded');
+    return result;
+  } catch (e2) {
+    console.log('[robustParseJSON] Attempt 2 failed:', String(e2));
+  }
 
   // Attempt 3: extract first { ... } block
   try {
     const match = raw.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-  } catch {}
+    if (match) {
+      const result = JSON.parse(match[0]);
+      console.log('[robustParseJSON] Attempt 3 succeeded');
+      return result;
+    }
+  } catch (e3) {
+    console.log('[robustParseJSON] Attempt 3 failed:', String(e3));
+  }
 
-  // Attempt 4: extract and fix common issues (trailing commas, single quotes, unquoted keys)
+  // Attempt 4: fix common JSON issues (trailing commas, single quotes, unquoted keys)
   try {
     const match = raw.match(/\{[\s\S]*\}/);
     if (match) {
@@ -59,12 +76,16 @@ function robustParseJSON(raw: string): unknown {
         .replace(/,\s*]/g, ']')
         .replace(/'/g, '"')
         .replace(/(\w+):/g, '"$1":');
-      return JSON.parse(fixed);
+      const result = JSON.parse(fixed);
+      console.log('[robustParseJSON] Attempt 4 succeeded');
+      return result;
     }
-  } catch {}
+  } catch (e4) {
+    console.log('[robustParseJSON] Attempt 4 failed:', String(e4));
+  }
 
-  console.error('[robustParseJSON] All parse attempts failed. Raw:', raw);
-  throw new Error('Could not parse JSON from OpenAI response');
+  console.error('[robustParseJSON] All attempts failed. Raw was:', raw);
+  throw new Error(`Could not parse JSON. Raw response: ${raw.slice(0, 200)}`);
 }
 
 function sanitizeMacroResponse(parsed: Record<string, unknown>): ParsedFoodEntry {
@@ -105,47 +126,71 @@ function sanitizeMacroResponse(parsed: Record<string, unknown>): ParsedFoodEntry
 export async function parseFoodMacros(input: string): Promise<ParsedFoodEntry> {
   const client = getOpenAIClient();
 
-  const response = await client.chat.completions.create({
-    model: 'gpt-5',
-    max_completion_tokens: 1000,
-    messages: [
-      {
-        role: 'system',
-        content: `You are a precise nutrition expert. The user will describe food they ate.
-You must respond with ONLY a raw JSON object. No markdown. No backticks. No explanation.
-No preamble. Just the JSON object itself starting with { and ending with }.
+  let raw: string | undefined;
 
-Use exactly these keys:
+  try {
+    const response = await client.chat.completions.create({
+      model: 'gpt-5',
+      max_completion_tokens: 1000,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a nutrition database. You only output JSON. Never explain. Never reason out loud.
+
+When given a food description, immediately output a single JSON object.
+Start your response with { and end with }. Nothing before or after.
+
+Required JSON structure:
 {
-  "food_name": "descriptive name of the food",
-  "calories": 350,
-  "protein_g": 25,
-  "carbs_g": 30,
-  "fat_g": 10,
-  "fiber_g": 3,
-  "meal_type": "breakfast",
-  "notes": "any relevant notes or empty string"
+  "food_name": string,
+  "calories": number,
+  "protein_g": number,
+  "carbs_g": number,
+  "fat_g": number,
+  "fiber_g": number,
+  "meal_type": "breakfast" | "lunch" | "dinner" | "snack",
+  "notes": string
 }
 
-Rules:
-- All numeric fields must be plain numbers, never strings or null
-- meal_type must be exactly one of: breakfast, lunch, dinner, snack
-- If you are unsure of exact macros, make a reasonable estimate
-- Never return null for numeric fields, use 0 as fallback
-- fiber_g and notes are optional but preferred`,
-      },
-      {
-        role: 'user',
-        content: `What are the macros for: ${input}`,
-      },
-    ],
-  });
+For partial portions like "3/4 of" or "half of", calculate accordingly.
+For mixed proteins like "half chicken half beef", average or combine the macros.
+Always estimate confidently. Never output null. Use 0 if truly unknown.
+Do not include any text outside the JSON object.`,
+        },
+        {
+          role: 'user',
+          content: `What are the macros for: ${input}`,
+        },
+      ],
+    });
 
-  const raw = response.choices[0].message.content ?? '';
-  console.log('[parseFoodMacros] Raw response:', raw);
+    raw = response.choices[0].message.content ?? '';
+    console.log('[parseFoodMacros] Raw response:', raw);
 
-  const parsed = robustParseJSON(raw) as Record<string, unknown>;
-  return sanitizeMacroResponse(parsed);
+    return sanitizeMacroResponse(robustParseJSON(raw) as Record<string, unknown>);
+  } catch (firstErr) {
+    console.log('[parseFoodMacros] First attempt failed, trying self-correction:', String(firstErr));
+
+    const fixResponse = await client.chat.completions.create({
+      model: 'gpt-5',
+      max_completion_tokens: 500,
+      messages: [
+        {
+          role: 'user',
+          content: `Convert this nutrition information into a single valid JSON object with these exact keys: food_name, calories, protein_g, carbs_g, fat_g, fiber_g, meal_type, notes. Output ONLY the JSON, nothing else.
+
+Food: ${input}
+
+Previous attempt that failed to parse: ${raw ?? 'no response'}`,
+        },
+      ],
+    });
+
+    const fixedRaw = fixResponse.choices[0].message.content ?? '';
+    console.log('[parseFoodMacros] Self-correction raw:', fixedRaw);
+
+    return sanitizeMacroResponse(robustParseJSON(fixedRaw) as Record<string, unknown>);
+  }
 }
 
 export async function getMealRecommendations(context: {
