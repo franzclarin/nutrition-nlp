@@ -3,9 +3,24 @@ import { redirect } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import BottomNav from '@/components/BottomNav';
 
+function isNextInternalError(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'digest' in err &&
+    typeof (err as { digest: unknown }).digest === 'string'
+  );
+}
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { userId } = await auth();
-  if (!userId) redirect('/sign-in');
+  try {
+    const { userId } = await auth();
+    if (!userId) redirect('/sign-in');
+  } catch (err) {
+    if (isNextInternalError(err)) throw err;
+    console.error('[AppLayout] Auth error:', err);
+    throw err;
+  }
 
   return (
     <div className="flex min-h-screen bg-background">
