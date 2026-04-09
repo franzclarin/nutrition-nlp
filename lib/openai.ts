@@ -123,74 +123,71 @@ function sanitizeMacroResponse(parsed: Record<string, unknown>): ParsedFoodEntry
 // Public functions
 // ---------------------------------------------------------------------------
 
+const FOOD_PARSE_MODELS = ['gpt-5', 'gpt-4o'] as const;
+
+const FOOD_PARSE_USER_PROMPT = (input: string) =>
+  `You are a nutrition expert. Analyze this food and respond with ONLY a JSON object, nothing else. No explanation, no markdown.
+
+Food input: "${input}"
+
+Respond with exactly this JSON structure:
+{
+  "food_name": "name of food",
+  "calories": 500,
+  "protein_g": 30,
+  "carbs_g": 40,
+  "fat_g": 20,
+  "fiber_g": 5,
+  "meal_type": "dinner",
+  "notes": ""
+}
+
+For portions like "3/4 of" calculate proportionally.
+For mixed proteins like "half chicken half beef" combine the macros.
+Use realistic estimates. All numbers must be plain numbers, not strings.`;
+
 export async function parseFoodMacros(input: string): Promise<ParsedFoodEntry> {
   const client = getOpenAIClient();
 
-  let raw: string | undefined;
+  for (const model of FOOD_PARSE_MODELS) {
+    try {
+      const response = await client.chat.completions.create({
+        model,
+        max_completion_tokens: 1000,
+        messages: [{ role: 'user', content: FOOD_PARSE_USER_PROMPT(input) }],
+      });
 
-  try {
-    const response = await client.chat.completions.create({
-      model: 'gpt-5',
-      max_completion_tokens: 1000,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a nutrition database. You only output JSON. Never explain. Never reason out loud.
+      console.log(`[parseFoodMacros] Full response from ${model}:`, JSON.stringify({
+        id: response.id,
+        model: response.model,
+        finish_reason: response.choices[0]?.finish_reason,
+        content: response.choices[0]?.message?.content,
+        refusal: response.choices[0]?.message?.refusal,
+        usage: response.usage,
+      }));
 
-When given a food description, immediately output a single JSON object.
-Start your response with { and end with }. Nothing before or after.
+      const choice = response.choices[0];
 
-Required JSON structure:
-{
-  "food_name": string,
-  "calories": number,
-  "protein_g": number,
-  "carbs_g": number,
-  "fat_g": number,
-  "fiber_g": number,
-  "meal_type": "breakfast" | "lunch" | "dinner" | "snack",
-  "notes": string
-}
+      if (choice.message.refusal) {
+        console.error(`[parseFoodMacros] ${model} refused:`, choice.message.refusal);
+        continue;
+      }
 
-For partial portions like "3/4 of" or "half of", calculate accordingly.
-For mixed proteins like "half chicken half beef", average or combine the macros.
-Always estimate confidently. Never output null. Use 0 if truly unknown.
-Do not include any text outside the JSON object.`,
-        },
-        {
-          role: 'user',
-          content: `What are the macros for: ${input}`,
-        },
-      ],
-    });
+      if (!choice.message.content || choice.message.content.trim().length === 0) {
+        console.error(`[parseFoodMacros] ${model} returned empty content. finish_reason: ${choice.finish_reason}`);
+        continue;
+      }
 
-    raw = response.choices[0].message.content ?? '';
-    console.log('[parseFoodMacros] Raw response:', raw);
-
-    return sanitizeMacroResponse(robustParseJSON(raw) as Record<string, unknown>);
-  } catch (firstErr) {
-    console.log('[parseFoodMacros] First attempt failed, trying self-correction:', String(firstErr));
-
-    const fixResponse = await client.chat.completions.create({
-      model: 'gpt-5',
-      max_completion_tokens: 500,
-      messages: [
-        {
-          role: 'user',
-          content: `Convert this nutrition information into a single valid JSON object with these exact keys: food_name, calories, protein_g, carbs_g, fat_g, fiber_g, meal_type, notes. Output ONLY the JSON, nothing else.
-
-Food: ${input}
-
-Previous attempt that failed to parse: ${raw ?? 'no response'}`,
-        },
-      ],
-    });
-
-    const fixedRaw = fixResponse.choices[0].message.content ?? '';
-    console.log('[parseFoodMacros] Self-correction raw:', fixedRaw);
-
-    return sanitizeMacroResponse(robustParseJSON(fixedRaw) as Record<string, unknown>);
+      const raw = choice.message.content.trim();
+      console.log(`[parseFoodMacros] Success with model: ${model}`);
+      return sanitizeMacroResponse(robustParseJSON(raw) as Record<string, unknown>);
+    } catch (err) {
+      console.error(`[parseFoodMacros] ${model} error:`, String(err));
+      continue;
+    }
   }
+
+  throw new Error('All models failed to return a valid response');
 }
 
 export async function getMealRecommendations(context: {
@@ -206,38 +203,52 @@ export async function getMealRecommendations(context: {
     max_completion_tokens: 1024,
     messages: [
       {
-        role: 'system',
-        content: `You are a knowledgeable nutritionist. Based on the user's remaining macros and goal, suggest exactly 3 specific meals.
-You must respond with ONLY a raw JSON object. No markdown. No backticks. No preamble.
+        role: 'user',
+        content: `You are a nutrition coach. Suggest exactly 3 meals based on the data below. Respond with ONLY a JSON object, no explanation, no markdown.
 
-Use exactly this shape:
+${JSON.stringify({
+  remainingMacros: context.remaining,
+  todaysLogs: context.eatenToday,
+  userGoal: context.goal,
+  timeOfDay: context.timeOfDay,
+}, null, 2)}
+
+Respond with exactly this structure:
 {
   "suggestions": [
     {
       "meal_name": "Grilled Chicken Salad",
-      "description": "...",
+      "description": "Brief description",
       "approx_calories": 400,
       "approx_protein": 35,
       "approx_carbs": 20,
       "approx_fat": 15,
-      "reasoning": "..."
+      "reasoning": "Why this fits the remaining macros"
     }
   ]
 }`,
       },
-      {
-        role: 'user',
-        content: JSON.stringify({
-          remainingMacros: context.remaining,
-          todaysLogs: context.eatenToday,
-          userGoal: context.goal,
-          timeOfDay: context.timeOfDay,
-        }),
-      },
     ],
   });
 
-  const raw = response.choices[0].message.content ?? '';
+  console.log('[getMealRecommendations] Full response:', JSON.stringify({
+    id: response.id,
+    model: response.model,
+    finish_reason: response.choices[0]?.finish_reason,
+    content: response.choices[0]?.message?.content,
+    refusal: response.choices[0]?.message?.refusal,
+    usage: response.usage,
+  }));
+
+  const recChoice = response.choices[0];
+  if (recChoice.message.refusal) {
+    throw new Error(`Model refused recommendations request: ${recChoice.message.refusal}`);
+  }
+  if (!recChoice.message.content || recChoice.message.content.trim().length === 0) {
+    throw new Error(`Model returned empty recommendations. finish_reason: ${recChoice.finish_reason}`);
+  }
+
+  const raw = recChoice.message.content.trim();
   console.log('[getMealRecommendations] Raw response:', raw);
 
   let parsed = robustParseJSON(raw);
